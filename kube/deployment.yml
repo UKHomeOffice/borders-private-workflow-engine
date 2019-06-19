@@ -28,7 +28,6 @@ spec:
         volumeMounts:
           - name: resourcerepo
             mountPath: /repo
-      containers:
       - name: certs
         image: quay.io/ukhomeofficedigital/borders-cfssl-sidekick:bd4901b5a28c
         securityContext:
@@ -52,6 +51,7 @@ spec:
             readOnly: true
           - name: keystore
             mountPath: /etc/keystore
+      containers:
       - name: proxy
         image: quay.io/ukhomeofficedigital/nginx-proxy
         imagePullPolicy: Always

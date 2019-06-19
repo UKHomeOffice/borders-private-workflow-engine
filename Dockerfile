@@ -12,5 +12,5 @@ EXPOSE 8080
 
 USER 1000
 
-ENTRYPOINT /app/etc/run.sh java -cp /workflow-resources $JAVA_OPTS -jar /app/dist/libs/workflow-engine.jar
+ENTRYPOINT java -cp /workflow-resources $JAVA_OPTS -jar /app/dist/libs/workflow-engine.jar
 
