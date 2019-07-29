@@ -63,7 +63,7 @@ class UserServiceSpec extends Specification {
             response {
                 status: 200
                 body """
-                       {
+                       [{
                           "phone": "phone",
                           "email": "email",
                           "gradeid": "gradeid",
@@ -84,7 +84,7 @@ class UserServiceSpec extends Specification {
                             }
                           ],
                           "staffid": "staffid"
-                        }
+                        }]
                      """
                 headers {
                     "Content-Type" "application/json"
@@ -316,7 +316,7 @@ class UserServiceSpec extends Specification {
             response {
                 status: 200
                 body """
-                       {
+                       [{
                           "phone": "phone",
                           "email": "email",
                           "gradeid": "gradeid",
@@ -334,7 +334,7 @@ class UserServiceSpec extends Specification {
                           ],
                           "staffid": "staffid",
                           "gradename": "grade"
-                        }
+                        }]
                      """
                 headers {
                     "Content-Type" "application/json"

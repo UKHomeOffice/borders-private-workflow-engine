@@ -44,7 +44,6 @@ class TeamServiceSpec extends Specification {
                          ]
                      """
                 headers {
-                    "Content-Type" "application/vnd.pgrst.object+json"
                 }
             }
 
@@ -77,7 +76,6 @@ class TeamServiceSpec extends Specification {
                          ]
                      """
                 headers {
-                    "Content-Type" "application/vnd.pgrst.object+json"
                 }
             }
 

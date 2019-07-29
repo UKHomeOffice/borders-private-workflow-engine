@@ -81,54 +81,54 @@ class ShiftApiControllerSpec extends BaseSpec {
         }
     }
 
-    // def "can get shift info at /api/workflow/shift"() {
-    //     given:
-    //     def shift = createActiveShift()
+     def "can get shift info at /api/workflow/shift"() {
+         given:
+         def shift = createActiveShift()
 
-    //     and:
-    //     deleteShift()
-    //     logInUser()
+         and:
+         deleteShift()
+         logInUser()
 
-    //     and:
-    //     wireMockStub.stub {
-    //         request {
-    //             method 'GET'
-    //             url '/location?locationid=eq.current'
-    //             headers {
-    //                 "nginxId" {
-    //                     equalTo "correlationId"
-    //                 }
-    //             }
+         and:
+         wireMockStub.stub {
+             request {
+                 method 'GET'
+                 url '/location?locationid=eq.current'
+                 headers {
+                     "nginxId" {
+                         equalTo "correlationId"
+                     }
+                 }
 
-    //         }
-    //         response {
-    //             status 200
-    //             headers {
-    //                 "Content-Type" "application/json"
-    //             }
-    //             body '''
-    //                     {
-    //                      "locationname" : "current"
-    //                     }
-    //                 '''
-    //         }
-    //     }
+             }
+             response {
+                 status 200
+                 headers {
+                     "Content-Type" "application/json"
+                 }
+                 body '''
+                         {
+                          "locationname" : "current"
+                         }
+                     '''
+             }
+         }
 
-    //     and:
-    //     mvc.perform(post('/api/workflow/shift')
-    //             .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(shift)).header("nginxId", "correlationId"))
+         and:
+         mvc.perform(post('/api/workflow/shift')
+                 .contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(shift)).header("nginxId", "correlationId"))
 
-    //     when:
-    //     def result = mvc.perform(get('/api/workflow/shift/testEmail')
-    //             .contentType(MediaType.APPLICATION_JSON).header("nginxId", "correlationId"))
+         when:
+         def result = mvc.perform(get('/api/workflow/shift/testEmail')
+                 .contentType(MediaType.APPLICATION_JSON).header("nginxId", "correlationId"))
 
-    //     then:
-    //     result.andExpect(status().is2xxSuccessful())
-    //     PlatformUser.ShiftDetails shiftInfo = objectMapper.readValue(result.andReturn().response.contentAsString, PlatformUser.ShiftDetails)
-    //     shiftInfo
-    //     shiftInfo.getCurrentLocationName() == 'current'
+         then:
+         result.andExpect(status().is2xxSuccessful())
+         PlatformUser.ShiftDetails shiftInfo = objectMapper.readValue(result.andReturn().response.contentAsString, PlatformUser.ShiftDetails)
+         shiftInfo
+         shiftInfo.getCurrentLocationName() == 'current'
 
-    // }
+     }
 
     def 'can delete a shift at /api/workflow/shift'() {
         given:

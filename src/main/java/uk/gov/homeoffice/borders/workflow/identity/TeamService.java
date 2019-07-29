@@ -22,11 +22,9 @@ public class TeamService {
 
     public Team findById(String teamId) {
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.set("Accept", "application/vnd.pgrst.object+json");
         HttpEntity httpEntity = new HttpEntity(httpHeaders);
         ResponseEntity<List<Team>> response = restTemplate.exchange(platformDataUrlBuilder.teamById(teamId),
-                HttpMethod.GET, httpEntity, new ParameterizedTypeReference<List<Team>>() {
-                });
+                HttpMethod.GET, httpEntity, new ParameterizedTypeReference<List<Team>>() {});
         return response.getStatusCode().is2xxSuccessful() && !response.getBody().isEmpty() ? response.getBody().get(0) : null;
 
     }

@@ -96,20 +96,4 @@ class PlatformDataUrlBuilderSpec extends Specification {
         url
         url == 'http://localhost:9000/v1/comment?taskid=eq.taskId&order=createdon.desc'
     }
-
-
-    def 'can get shift url by email'() {
-
-        given:
-        def email = 'my+email+abc@host.com'
-
-        when:
-        def url = underTest.shiftUrlByEmail(email)
-
-        then:
-        url
-        url == 'http://localhost:9000/v1/shift?email=eq.my+email+abc@host.com'
-
-    }
-
 }

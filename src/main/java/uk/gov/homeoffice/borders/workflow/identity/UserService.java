@@ -3,14 +3,17 @@ package uk.gov.homeoffice.borders.workflow.identity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.util.CollectionUtils;
 import org.springframework.web.client.RestTemplate;
 import uk.gov.homeoffice.borders.workflow.PlatformDataUrlBuilder;
 import uk.gov.homeoffice.borders.workflow.exception.InternalWorkflowException;
 import uk.gov.homeoffice.borders.workflow.identity.PlatformUser.ShiftDetails;
 
 import javax.annotation.Resource;
-import java.net.URI;
 import java.util.*;
 
 import static java.util.Optional.ofNullable;
@@ -58,24 +61,31 @@ public class UserService {
     }
 
     private PlatformUser getStaff(final ShiftDetails shiftInfo) {
+
+
         HttpHeaders httpHeaders = new HttpHeaders();
-        httpHeaders.set("Accept", "application/vnd.pgrst.object+json");
 
-        ResponseEntity<PlatformUser> response = restTemplate.exchange(platformDataUrlBuilder.getStaffUrl(),
-                HttpMethod.POST, new HttpEntity<>(Collections.singletonMap("argstaffid", shiftInfo.getStaffId()), httpHeaders), PlatformUser.class);
+        List<PlatformUser> users = restTemplate.exchange(platformDataUrlBuilder.getStaffUrl(),
+                HttpMethod.POST, new HttpEntity<>(Collections.singletonMap("argstaffid", shiftInfo.getStaffId()), httpHeaders),
+                new ParameterizedTypeReference<List<PlatformUser>>() {
+                }).getBody();
 
-        return ofNullable(response.getBody()).map(user -> {
-            List<Team> teams = restTemplate
-                    .exchange(platformDataUrlBuilder.teamChildren(),
-                            HttpMethod.POST,
-                            new HttpEntity<>(Collections.singletonMap("inputid", shiftInfo.getTeamId())),
-                            new ParameterizedTypeReference<List<Team>>() {}).getBody();
+        if (CollectionUtils.isEmpty(users)) {
+            throw new InternalWorkflowException(String.format("Could not find platform user for %s", shiftInfo.getStaffId()));
+        }
+        PlatformUser platformUser = users.get(0);
+        List<Team> teams = restTemplate
+                .exchange(platformDataUrlBuilder.teamChildren(),
+                        HttpMethod.POST,
+                        new HttpEntity<>(Collections.singletonMap("inputid", shiftInfo.getTeamId())),
+                        new ParameterizedTypeReference<List<Team>>() {
+                        }).getBody();
 
-            user.setTeams(ofNullable(teams).orElse(new ArrayList<>()));
-            user.setShiftDetails(shiftInfo);
-            user.setEmail(shiftInfo.getEmail());
-            return user;
-        }).orElseThrow(() -> new InternalWorkflowException("Could not find shift user"));
+        platformUser.setTeams(ofNullable(teams).orElse(new ArrayList<>()));
+        platformUser.setShiftDetails(shiftInfo);
+        platformUser.setEmail(shiftInfo.getEmail());
+
+        return platformUser;
 
     }
 
@@ -87,13 +97,13 @@ public class UserService {
         List<ShiftDetails> shifts = restTemplate.exchange(url,
                 HttpMethod.GET, null, new ParameterizedTypeReference<List<ShiftDetails>>() {
                 }, new HashMap<>()).getBody();
-         return Optional.ofNullable(shifts).map((shiftDetails -> shiftDetails.stream().map(shift -> {
-             PlatformUser platformUser = new PlatformUser();
-             platformUser.setShiftDetails(shift);
-             platformUser.setId(shift.getStaffId());
-             platformUser.setEmail(shift.getEmail());
-             return platformUser;
-         }).collect(toList()))).orElse(new ArrayList<>());
+        return Optional.ofNullable(shifts).map((shiftDetails -> shiftDetails.stream().map(shift -> {
+            PlatformUser platformUser = new PlatformUser();
+            platformUser.setShiftDetails(shift);
+            platformUser.setId(shift.getStaffId());
+            platformUser.setEmail(shift.getEmail());
+            return platformUser;
+        }).collect(toList()))).orElse(new ArrayList<>());
     }
 
     private String resolveQueryUrl(UserQuery query) {
