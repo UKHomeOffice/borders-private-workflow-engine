@@ -7,7 +7,7 @@ spec:
   selector:
     matchLabels:
       name: {{.ENGINE_NAME}}
-  replicas: 3
+  replicas: 5
   revisionHistoryLimit: 3
   template:
     metadata:
