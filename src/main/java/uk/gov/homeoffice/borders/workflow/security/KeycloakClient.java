@@ -25,8 +25,10 @@ import static java.util.Optional.ofNullable;
 @Service
 public class KeycloakClient {
     private final URI authUrl;
+    private final URI authHostname;
     private final String clientId;
     private final String clientSecret;
+    private final String authRealm;
     private RestTemplate restTemplate;
 
     public KeycloakClient(@Value("${keycloak.auth-server-url}") final String authUrl,
@@ -34,8 +36,10 @@ public class KeycloakClient {
                           @Value("${keycloak.resource}") final String clientId,
                           @Value("${keycloak.credentials.secret}") String clientSecret) throws URISyntaxException {
         this.authUrl = new URI(authUrl + "/realms/" + authRealm + "/protocol/openid-connect/token");
+        this.authHostname = new URI(authUrl);
         this.clientId = clientId;
         this.clientSecret = clientSecret;
+        this.authRealm = authRealm;
         this.restTemplate = new RestTemplate();
     }
 
