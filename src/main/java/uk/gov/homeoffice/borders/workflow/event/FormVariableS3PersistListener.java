@@ -66,19 +66,19 @@ public class FormVariableS3PersistListener implements HistoryEventHandler {
                     readModelFromStream(this.repositoryService.getProcessModel(processDefinitionId));
 
 
-            Boolean disableExplicitS3Save = S3_SAVE_CHECK
+            Boolean enableImplicitS3Save = S3_SAVE_CHECK
                     .computeIfAbsent(processDefinitionId, id ->
                             getAttribute(model,
-                                    "disableExplicitFormDataS3Save", Boolean::valueOf,
+                                    "enableImplicitS3Save", Boolean::valueOf,
                                     Boolean.FALSE));
 
-            Boolean disableExplicitESave = ES_SAVE_CHECK.computeIfAbsent(processDefinitionId, id ->
-                    getAttribute(model, "disableExplicitESSave", Boolean::valueOf,
+            Boolean enableImplicitESSave = ES_SAVE_CHECK.computeIfAbsent(processDefinitionId, id ->
+                    getAttribute(model, "enableImplicitESSave", Boolean::valueOf,
                             Boolean.FALSE));
 
-            if (!disableExplicitS3Save) {
+            if (enableImplicitS3Save) {
                 registerSynchronization(new VariableS3TransactionSynchronisation(historyEvent,
-                        disableExplicitESave, model));
+                        enableImplicitESSave, model));
             }
         }
     }
@@ -98,7 +98,7 @@ public class FormVariableS3PersistListener implements HistoryEventHandler {
     @AllArgsConstructor
     public class VariableS3TransactionSynchronisation extends TransactionSynchronizationAdapter {
         private HistoryEvent historyEvent;
-        private Boolean disableExplicitESave;
+        private Boolean enableImplicitESSave;
         private BpmnModelInstance model;
 
         private final Logger log = LoggerFactory.getLogger(VariableS3TransactionSynchronisation.class);
@@ -134,7 +134,7 @@ public class FormVariableS3PersistListener implements HistoryEventHandler {
                                     {
                                         log.info("Initiating save of form data");
                                         String key = formToS3Uploader.upload(form, processInstance, variable.getExecutionId(), product);
-                                        if (!disableExplicitESave) {
+                                        if (enableImplicitESSave) {
                                             if (key != null) {
                                                 log.info("Form data saved to S3 {}", key);
                                                 log.info("Uploading form to ES");
