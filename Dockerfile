@@ -5,6 +5,7 @@ RUN set -eux; \
   apk add --no-cache \
   openssl \
   shadow \
+  bash \
   less \
   curl; \
   rm -rf /var/cache/apk/* ; \
