@@ -114,7 +114,7 @@ pipeline:
       - kd --insecure-skip-tls-verify -f kube/service.yml
       - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
       - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=5m
+      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
       - kd --insecure-skip-tls-verify -f kube/ingress.yml
     when:
       branch: master
@@ -163,7 +163,7 @@ pipeline:
       - kd --insecure-skip-tls-verify -f kube/service.yml
       - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
       - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=5m
+      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
       - kd --insecure-skip-tls-verify -f kube/ingress.yml
     when:
       environment: staging
@@ -201,7 +201,7 @@ pipeline:
       - kd --insecure-skip-tls-verify -f kube/service.yml
       - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
       - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=5m
+      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
       - kd --insecure-skip-tls-verify -f kube/ingress.yml
     when:
       environment: production
@@ -279,3 +279,9 @@ pipeline:
       branch: master
       event: [ push, deployment ]
       status: [ success, failure ]
+
+matrix:                 # setup some common env vars
+  SNOW_DESC_FILE:
+    - /drone/src/change-desc.txt
+  SNOW_INT_ID_FILE:
+    - /drone/src/internal-id
