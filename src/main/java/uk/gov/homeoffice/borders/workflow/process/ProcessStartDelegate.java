@@ -19,14 +19,14 @@ public class ProcessStartDelegate implements JavaDelegate {
             String variableName = execution.getVariable("variableName").toString();
             String businessKey = execution.getVariable("businessKey").toString();
             String processKey = execution.getVariable("processKey").toString();
-            Object personKey = execution.getVariable("personKey");
+            Object is81Person = execution.getVariable("is81Person");
 
             HashMap variables = new HashMap();
             variables.put("type", "non-notification");
             variables.put(variableName, payload);
 
-            if (personKey != null) {
-                variables.put("personKey", personKey.toString());
+            if (is81Person != null) {
+                variables.put("is81Person", is81Person);
             }
 
             execution.getProcessEngineServices()
