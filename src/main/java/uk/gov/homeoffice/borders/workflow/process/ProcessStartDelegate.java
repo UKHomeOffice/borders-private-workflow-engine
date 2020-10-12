@@ -5,6 +5,7 @@ import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.springframework.stereotype.Component;
+import java.util.HashMap;
 
 @Slf4j
 @Component
@@ -18,13 +19,21 @@ public class ProcessStartDelegate implements JavaDelegate {
             String variableName = execution.getVariable("variableName").toString();
             String businessKey = execution.getVariable("businessKey").toString();
             String processKey = execution.getVariable("processKey").toString();
+            Object personKey = execution.getVariable("personKey");
+
+            HashMap variables = new HashMap();
+            variables.put("type", "non-notification");
+            variables.put(variableName, payload);
+
+            if (personKey != null) {
+                variables.put("personKey", personKey.toString());
+            }
 
             execution.getProcessEngineServices()
                     .getRuntimeService()
                     .createProcessInstanceByKey(processKey)
                     .businessKey(businessKey)
-                    .setVariable("type", "non-notification")
-                    .setVariable(variableName, payload)
+                    .setVariables(variables)
                     .execute();
 
         } catch (Exception e) {
