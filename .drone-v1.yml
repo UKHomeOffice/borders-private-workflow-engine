@@ -75,20 +75,6 @@ steps:
     event:
     - push
 
-- name: vulnerability-scan
-  image: docker.digital.homeoffice.gov.uk/acp-anchore-submission:latest
-  environment:
-    DOCKERFILE: Dockerfile
-    IMAGE_NAME: cop-private-workflow-engine:${DRONE_COMMIT_SHA}
-    LOCAL_IMAGE: true
-    SERVICE_URL: http://anchore-submission-server:10080
-    TOLERATE: low
-  when:
-    branch:
-    - master
-    event:
-    - push
-
 - name: image_to_quay
   image: plugins/docker
   settings:
@@ -141,6 +127,20 @@ steps:
       from_secret: NGINX_IMAGE
     NGINX_TAG:
       from_secret: NGINX_TAG
+  when:
+    branch:
+    - master
+    event:
+    - push
+
+- name: vulnerability-scan
+  image: docker.digital.homeoffice.gov.uk/acp-anchore-submission:latest
+  environment:
+    DOCKERFILE: Dockerfile
+    IMAGE_NAME: cop-private-workflow-engine:${DRONE_COMMIT_SHA}
+    LOCAL_IMAGE: true
+    SERVICE_URL: http://anchore-submission-server:10080
+    TOLERATE: low
   when:
     branch:
     - master
