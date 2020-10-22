@@ -68,8 +68,6 @@ steps:
   commands:
   - n=0; while [ "$n" -lt 60 ] && [ ! -e /var/run/docker.sock ]; do n=$(( n + 1 )); sleep 1; done
   - docker build -t cop-private-workflow-engine:$${DRONE_COMMIT_SHA} .
-  environment:
-    DOCKER_HOST: tcp://172.17.0.1:2375
   volumes:
   - name: dockersock
     path: /var/run
