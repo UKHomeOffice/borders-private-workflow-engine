@@ -19,7 +19,8 @@ steps:
     DEPLOY_ENV: dev
     DRONE_SERVER: https://drone-gh.acp.homeoffice.gov.uk
     DRONE_TOKEN:
-      from_secret: DRONE_PUBLIC_TOKEN
+      from_secret: DRONE_V1_PUBLIC_TOKEN
+    DRONE_VERSION: ${DRONE_SYSTEM_VERSION}
   when:
     event:
     - promote
@@ -37,7 +38,8 @@ steps:
     DEPLOY_ENV: staging
     DRONE_SERVER: https://drone-gh.acp.homeoffice.gov.uk
     DRONE_TOKEN:
-      from_secret: DRONE_PUBLIC_TOKEN
+      from_secret: DRONE_V1_PUBLIC_TOKEN
+    DRONE_VERSION: ${DRONE_SYSTEM_VERSION}
   when:
     event:
     - promote
@@ -55,7 +57,8 @@ steps:
     DEPLOY_ENV: production
     DRONE_SERVER: https://drone-gh.acp.homeoffice.gov.uk
     DRONE_TOKEN:
-      from_secret: DRONE_PUBLIC_TOKEN
+      from_secret: DRONE_V1_PUBLIC_TOKEN
+    DRONE_VERSION: ${DRONE_SYSTEM_VERSION}
   when:
     event:
     - promote
@@ -72,6 +75,21 @@ steps:
   - name: dockersock
     path: /var/run
   when:
+    event:
+    - push
+
+- name: vulnerability-scan
+  image: docker.digital.homeoffice.gov.uk/acp-anchore-submission:latest
+  environment:
+    DOCKERFILE: Dockerfile
+    IMAGE_NAME: cop-private-workflow-engine:${DRONE_COMMIT_SHA}
+    LOCAL_IMAGE: true
+    SERVICE_URL: http://anchore-submission-server:10080
+    TOLERATE: low
+    WHITELIST_FILE: whitelist
+  when:
+    branch:
+    - master
     event:
     - push
 
@@ -127,20 +145,6 @@ steps:
       from_secret: NGINX_IMAGE
     NGINX_TAG:
       from_secret: NGINX_TAG
-  when:
-    branch:
-    - master
-    event:
-    - push
-
-- name: vulnerability-scan
-  image: docker.digital.homeoffice.gov.uk/acp-anchore-submission:latest
-  environment:
-    DOCKERFILE: Dockerfile
-    IMAGE_NAME: cop-private-workflow-engine:${DRONE_COMMIT_SHA}
-    LOCAL_IMAGE: true
-    SERVICE_URL: http://anchore-submission-server:10080
-    TOLERATE: low
   when:
     branch:
     - master
