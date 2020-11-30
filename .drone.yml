@@ -1,287 +1,361 @@
-pipeline:
-  synch_dev_secrets:
-    image: quay.io/ukhomeofficedigital/cop-secrets
-    environment:
-      - DRONE_SERVER=https://drone.acp.homeoffice.gov.uk
-      - DEPLOY_ENV=dev
-    secrets:
-      - source: DEV_DRONE_AWS_ACCESS_KEY_ID
-        target: AWS_ACCESS_KEY_ID
-      - source: DEV_DRONE_AWS_SECRET_ACCESS_KEY
-        target: AWS_SECRET_ACCESS_KEY
-      - source: DRONE_PUBLIC_TOKEN
-        target: DRONE_TOKEN
-    when:
-      environment: secrets
-      event: deployment
+---
+kind: pipeline
+type: kubernetes
+name: matrix-1
 
-  synch_staging_secrets:
-    image: quay.io/ukhomeofficedigital/cop-secrets
-    environment:
-      - DRONE_SERVER=https://drone.acp.homeoffice.gov.uk
-      - DEPLOY_ENV=staging
-    secrets:
-      - source: STAGING_DRONE_AWS_ACCESS_KEY_ID
-        target: AWS_ACCESS_KEY_ID
-      - source: STAGING_DRONE_AWS_SECRET_ACCESS_KEY
-        target: AWS_SECRET_ACCESS_KEY
-      - source: DRONE_PUBLIC_TOKEN
-        target: DRONE_TOKEN
-    when:
-      environment: secrets
-      event: deployment
+platform:
+  os: linux
+  arch: amd64
 
-  synch_production_secrets:
-    image: quay.io/ukhomeofficedigital/cop-secrets
-    environment:
-      - DRONE_SERVER=https://drone.acp.homeoffice.gov.uk
-      - DEPLOY_ENV=production
-    secrets:
-      - source: PRODUCTION_DRONE_AWS_ACCESS_KEY_ID
-        target: AWS_ACCESS_KEY_ID
-      - source: PRODUCTION_DRONE_AWS_SECRET_ACCESS_KEY
-        target: AWS_SECRET_ACCESS_KEY
-      - source: DRONE_PUBLIC_TOKEN
-        target: DRONE_TOKEN
-    when:
-      environment: secrets
-      event: deployment
+steps:
+- name: synch_dev_secrets
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/cop-secrets
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: DEV_DRONE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: DEV_DRONE_AWS_SECRET_ACCESS_KEY
+    DEPLOY_ENV: dev
+    DRONE_SERVER: https://drone-gh.acp.homeoffice.gov.uk
+    DRONE_TOKEN:
+      from_secret: DRONE_V1_PUBLIC_TOKEN
+    DRONE_VERSION: ${DRONE_SYSTEM_VERSION}
+  when:
+    event:
+    - promote
+    target:
+    - secrets
 
-  #test:
-  #  image: digitalpatterns/jdk:1
-  #  environment:
-  #    - DOCKER_HOST=tcp://172.17.0.1:2375
-  #    - GRADLE_USER_HOME=~/.gradle
-  #  commands:
-  #    - ./gradlew test jacocoTestReport
-  #  when:
-  #    event:
-  #      - push
-  #      - pull_request
+- name: synch_staging_secrets
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/cop-secrets
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_DRONE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_DRONE_AWS_SECRET_ACCESS_KEY
+    DEPLOY_ENV: staging
+    DRONE_SERVER: https://drone-gh.acp.homeoffice.gov.uk
+    DRONE_TOKEN:
+      from_secret: DRONE_V1_PUBLIC_TOKEN
+    DRONE_VERSION: ${DRONE_SYSTEM_VERSION}
+  when:
+    event:
+    - promote
+    target:
+    - secrets
 
-  build:
-    image: quay.io/ukhomeofficedigital/drone-docker
-    environment:
-      - DOCKER_HOST=tcp://172.17.0.1:2375
-    commands:
-      - docker build -t cop-private-workflow-engine:$${DRONE_COMMIT_SHA} .
-    when:
-      event: push
+- name: synch_production_secrets
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/cop-secrets
+  environment:
+    AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_DRONE_AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_DRONE_AWS_SECRET_ACCESS_KEY
+    DEPLOY_ENV: production
+    DRONE_SERVER: https://drone-gh.acp.homeoffice.gov.uk
+    DRONE_TOKEN:
+      from_secret: DRONE_V1_PUBLIC_TOKEN
+    DRONE_VERSION: ${DRONE_SYSTEM_VERSION}
+  when:
+    event:
+    - promote
+    target:
+    - secrets
 
-  image_to_quay:
-    image: quay.io/ukhomeofficedigital/drone-docker
-    secrets:
-    - source: QUAY_USERNAME
-      target: DOCKER_USERNAME
-    - source: QUAY_PASSWORD
-      target: DOCKER_PASSWORD
+- name: build
+  pull: if-not-exists
+  image: docker:19.03.12-dind
+  commands:
+  - n=0; while [ "$n" -lt 60 ] && [ ! -e /var/run/docker.sock ]; do n=$(( n + 1 )); sleep 1; done
+  - docker build -t cop-private-workflow-engine:$${DRONE_COMMIT_SHA} .
+  volumes:
+  - name: dockersock
+    path: /var/run
+  when:
+    event:
+    - push
+
+- name: vulnerability-scan
+  image: docker.digital.homeoffice.gov.uk/acp-anchore-submission:latest
+  environment:
+    DOCKERFILE: Dockerfile
+    IMAGE_NAME: cop-private-workflow-engine:${DRONE_COMMIT_SHA}
+    LOCAL_IMAGE: true
+    SERVICE_URL: http://anchore-submission-server:10080
+    TOLERATE: low
+    WHITELIST_FILE: whitelist
+  when:
+    branch:
+    - master
+    event:
+    - push
+
+- name: image_to_quay
+  image: plugins/docker
+  settings:
     registry: quay.io
     repo: quay.io/ukhomeofficedigital/cop-private-workflow-engine
     tags: ${DRONE_COMMIT_SHA}
-    when:
-      branch: master
-      event: push
+  environment:
+    DOCKER_PASSWORD:
+      from_secret: QUAY_PASSWORD
+    DOCKER_USERNAME:
+      from_secret: QUAY_USERNAME
+  when:
+    branch:
+    - master
+    event:
+    - push
 
-  deploy_to_dev:
-    image: quay.io/ukhomeofficedigital/kd
-    secrets:
-    - source: DEV_KUBE_SERVER
-      target: KUBE_SERVER
-    - source: DEV_KUBE_TOKEN
-      target: KUBE_TOKEN
-    - source: DEV_KUBE_NAMESPACE_PRIVATE_COP
-      target: KUBE_NAMESPACE
-    - source: NGINX_IMAGE
-      target: NGINX_IMAGE
-    - source: NGINX_TAG
-      target: NGINX_TAG
-    - source: DEV_ENGINE_NAME
-      target: ENGINE_NAME
-    - source: DEV_ENGINE_URL
-      target: ENGINE_URL
-    - source: DEV_ENGINE_IMAGE
-      target: ENGINE_IMAGE
-    - source: DEV_ENGINE_AWS_ACCESS_KEY_ID
-      target: ENGINE_AWS_ACCESS_KEY_ID
-    - source: DEV_ENGINE_AWS_SECRET_ACCESS_KEY
-      target: ENGINE_AWS_SECRET_ACCESS_KEY
-    commands:
-      - export ENGINE_TAG=$${DRONE_COMMIT_SHA}
-      - export ENGINE_SPRING_PROFILES_ACTIVE="dev"
-      - kd --insecure-skip-tls-verify -f kube/cert.yml
-      - kd --insecure-skip-tls-verify -f kube/secret.yml
-      - kd --insecure-skip-tls-verify -f kube/network-policy.yml
-      - kd --insecure-skip-tls-verify -f kube/service.yml
-      - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
-      - kd --insecure-skip-tls-verify -f kube/ingress.yml
-    when:
-      branch: master
-      event: push
+- name: deploy_to_dev
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/kd
+  commands:
+  - export ENGINE_TAG=$${DRONE_COMMIT_SHA}
+  - export ENGINE_SPRING_PROFILES_ACTIVE="dev"
+  - kd --insecure-skip-tls-verify -f kube/cert.yml
+  - kd --insecure-skip-tls-verify -f kube/secret.yml
+  - kd --insecure-skip-tls-verify -f kube/network-policy.yml
+  - kd --insecure-skip-tls-verify -f kube/service.yml
+  - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
+  - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
+  - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
+  - kd --insecure-skip-tls-verify -f kube/ingress.yml
+  environment:
+    ENGINE_AWS_ACCESS_KEY_ID:
+      from_secret: DEV_ENGINE_AWS_ACCESS_KEY_ID
+    ENGINE_AWS_SECRET_ACCESS_KEY:
+      from_secret: DEV_ENGINE_AWS_SECRET_ACCESS_KEY
+    ENGINE_IMAGE:
+      from_secret: DEV_ENGINE_IMAGE
+    ENGINE_NAME:
+      from_secret: DEV_ENGINE_NAME
+    ENGINE_URL:
+      from_secret: DEV_ENGINE_URL
+    KUBE_NAMESPACE:
+      from_secret: DEV_KUBE_NAMESPACE_PRIVATE_COP
+    KUBE_SERVER:
+      from_secret: DEV_KUBE_SERVER
+    KUBE_TOKEN:
+      from_secret: DEV_KUBE_TOKEN
+    NGINX_IMAGE:
+      from_secret: NGINX_IMAGE
+    NGINX_TAG:
+      from_secret: NGINX_TAG
+  when:
+    branch:
+    - master
+    event:
+    - push
 
-  vulnerability-scan:
-    image: quay.io/ukhomeofficedigital/anchore-submission:latest
-    dockerfile: Dockerfile
-    image_name: cop-private-workflow-engine:${DRONE_COMMIT_SHA}
-    local_image: true
-    tolerate: low
-    fail_on_detection: false
-    when:
-      branch: master
-      event: push
+- name: deploy_to_staging
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/kd
+  commands:
+  - export ENGINE_TAG=$${DRONE_COMMIT_SHA}
+  - export ENGINE_SPRING_PROFILES_ACTIVE="staging"
+  - kd --insecure-skip-tls-verify -f kube/cert.yml
+  - kd --insecure-skip-tls-verify -f kube/secret.yml
+  - kd --insecure-skip-tls-verify -f kube/network-policy.yml
+  - kd --insecure-skip-tls-verify -f kube/service.yml
+  - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
+  - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
+  - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
+  - kd --insecure-skip-tls-verify -f kube/ingress.yml
+  environment:
+    ENGINE_AWS_ACCESS_KEY_ID:
+      from_secret: STAGING_ENGINE_AWS_ACCESS_KEY_ID
+    ENGINE_AWS_SECRET_ACCESS_KEY:
+      from_secret: STAGING_ENGINE_AWS_SECRET_ACCESS_KEY
+    ENGINE_IMAGE:
+      from_secret: STAGING_ENGINE_IMAGE
+    ENGINE_NAME:
+      from_secret: STAGING_ENGINE_NAME
+    ENGINE_URL:
+      from_secret: STAGING_ENGINE_URL
+    KUBE_NAMESPACE:
+      from_secret: STAGING_KUBE_NAMESPACE_PRIVATE_COP
+    KUBE_SERVER:
+      from_secret: STAGING_KUBE_SERVER
+    KUBE_TOKEN:
+      from_secret: STAGING_KUBE_TOKEN
+    NGINX_IMAGE:
+      from_secret: NGINX_IMAGE
+    NGINX_TAG:
+      from_secret: NGINX_TAG
+  when:
+    event:
+    - promote
+    target:
+    - staging
 
-  deploy_to_staging:
-    image: quay.io/ukhomeofficedigital/kd
-    secrets:
-    - source: STAGING_KUBE_SERVER
-      target: KUBE_SERVER
-    - source: STAGING_KUBE_TOKEN
-      target: KUBE_TOKEN
-    - source: STAGING_KUBE_NAMESPACE_PRIVATE_COP
-      target: KUBE_NAMESPACE
-    - source: NGINX_IMAGE
-      target: NGINX_IMAGE
-    - source: NGINX_TAG
-      target: NGINX_TAG
-    - source: STAGING_ENGINE_NAME
-      target: ENGINE_NAME
-    - source: STAGING_ENGINE_URL
-      target: ENGINE_URL
-    - source: STAGING_ENGINE_IMAGE
-      target: ENGINE_IMAGE
-    - source: STAGING_ENGINE_AWS_ACCESS_KEY_ID
-      target: ENGINE_AWS_ACCESS_KEY_ID
-    - source: STAGING_ENGINE_AWS_SECRET_ACCESS_KEY
-      target: ENGINE_AWS_SECRET_ACCESS_KEY
-    commands:
-      - export ENGINE_TAG=$${DRONE_COMMIT_SHA}
-      - export ENGINE_SPRING_PROFILES_ACTIVE="staging"
-      - kd --insecure-skip-tls-verify -f kube/cert.yml
-      - kd --insecure-skip-tls-verify -f kube/secret.yml
-      - kd --insecure-skip-tls-verify -f kube/network-policy.yml
-      - kd --insecure-skip-tls-verify -f kube/service.yml
-      - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
-      - kd --insecure-skip-tls-verify -f kube/ingress.yml
-    when:
-      environment: staging
-      event: deployment
+- name: deploy_to_production
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/kd
+  commands:
+  - export ENGINE_TAG=$${DRONE_COMMIT_SHA}
+  - export ENGINE_SPRING_PROFILES_ACTIVE="production"
+  - kd --insecure-skip-tls-verify -f kube/cert.yml
+  - kd --insecure-skip-tls-verify -f kube/secret.yml
+  - kd --insecure-skip-tls-verify -f kube/network-policy.yml
+  - kd --insecure-skip-tls-verify -f kube/service.yml
+  - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
+  - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
+  - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
+  - kd --insecure-skip-tls-verify -f kube/ingress.yml
+  environment:
+    ENGINE_AWS_ACCESS_KEY_ID:
+      from_secret: PRODUCTION_ENGINE_AWS_ACCESS_KEY_ID
+    ENGINE_AWS_SECRET_ACCESS_KEY:
+      from_secret: PRODUCTION_ENGINE_AWS_SECRET_ACCESS_KEY
+    ENGINE_IMAGE:
+      from_secret: PRODUCTION_ENGINE_IMAGE
+    ENGINE_NAME:
+      from_secret: PRODUCTION_ENGINE_NAME
+    ENGINE_URL:
+      from_secret: PRODUCTION_ENGINE_URL
+    KUBE_NAMESPACE:
+      from_secret: PRODUCTION_KUBE_NAMESPACE_PRIVATE_COP
+    KUBE_SERVER:
+      from_secret: PRODUCTION_KUBE_SERVER
+    KUBE_TOKEN:
+      from_secret: PRODUCTION_KUBE_TOKEN
+    NGINX_IMAGE:
+      from_secret: NGINX_IMAGE
+    NGINX_TAG:
+      from_secret: NGINX_TAG
+  when:
+    event:
+    - promote
+    target:
+    - production
 
-  deploy_to_production:
-    image: quay.io/ukhomeofficedigital/kd
-    secrets:
-    - source: PRODUCTION_KUBE_SERVER
-      target: KUBE_SERVER
-    - source: PRODUCTION_KUBE_TOKEN
-      target: KUBE_TOKEN
-    - source: PRODUCTION_KUBE_NAMESPACE_PRIVATE_COP
-      target: KUBE_NAMESPACE
-    - source: NGINX_IMAGE
-      target: NGINX_IMAGE
-    - source: NGINX_TAG
-      target: NGINX_TAG
-    - source: PRODUCTION_ENGINE_NAME
-      target: ENGINE_NAME
-    - source: PRODUCTION_ENGINE_URL
-      target: ENGINE_URL
-    - source: PRODUCTION_ENGINE_IMAGE
-      target: ENGINE_IMAGE
-    - source: PRODUCTION_ENGINE_AWS_ACCESS_KEY_ID
-      target: ENGINE_AWS_ACCESS_KEY_ID
-    - source: PRODUCTION_ENGINE_AWS_SECRET_ACCESS_KEY
-      target: ENGINE_AWS_SECRET_ACCESS_KEY
-    commands:
-      - export ENGINE_TAG=$${DRONE_COMMIT_SHA}
-      - export ENGINE_SPRING_PROFILES_ACTIVE="production"
-      - kd --insecure-skip-tls-verify -f kube/cert.yml
-      - kd --insecure-skip-tls-verify -f kube/secret.yml
-      - kd --insecure-skip-tls-verify -f kube/network-policy.yml
-      - kd --insecure-skip-tls-verify -f kube/service.yml
-      - kd --insecure-skip-tls-verify -f kube/nginx-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/certs-configmap.yml
-      - kd --insecure-skip-tls-verify -f kube/deployment.yml --timeout=8m
-      - kd --insecure-skip-tls-verify -f kube/ingress.yml
-    when:
-      environment: production
-      event: deployment
+- name: create-change-desc-production
+  pull: if-not-exists
+  image: docker:git
+  commands:
+  - n=0; while [ "$n" -lt 60 ] && [ ! -e /var/run/docker.sock ]; do n=$(( n + 1 )); sleep 1; done
+  - git show --name-only >> $SNOW_DESC_FILE
+  volumes:
+  - name: dockersock
+    path: /var/run
+  environment:
+    SNOW_DESC_FILE: /drone/src/change-desc.txt
+    SNOW_INT_ID_FILE: /drone/src/internal-id
+  when:
+    event:
+    - promote
+    target:
+    - production
 
-  create-change-desc-production:
-    image: docker:git
-    commands:
-      - git show --name-only >> $SNOW_DESC_FILE
-    when:
-      environment: production
-      event: deployment
+- name: open-snow-change-production
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/snowtify:latest
+  environment:
+    SNOW_DESC_FILE: /drone/src/change-desc.txt
+    SNOW_INT_ID_FILE: /drone/src/internal-id
+    SNOW_ENDPOINT:
+      from_secret: PRODUCTION_SERVICE_NOW_URL
+    SNOW_EXTERNAL_ID: ${DRONE_REPO}:${DRONE_COMMIT_SHA}
+    SNOW_PROD_PASS:
+      from_secret: PRODUCTION_SERVICE_NOW_PASSWORD
+    SNOW_PROD_USER:
+      from_secret: PRODUCTION_SERVICE_NOW_USERNAME
+  when:
+    event:
+    - promote
+    target:
+    - production
 
-  open-snow-change-production:
-    image: quay.io/ukhomeofficedigital/snowtify:latest
-    secrets:
-      - source: PRODUCTION_SERVICE_NOW_PASSWORD
-        target: SNOW_PROD_PASS
-      - source: PRODUCTION_SERVICE_NOW_URL
-        target: SNOW_ENDPOINT
-      - source: PRODUCTION_SERVICE_NOW_USERNAME
-        target: SNOW_PROD_USER
-    environment:
-      - SNOW_EXTERNAL_ID=${DRONE_REPO}:${DRONE_COMMIT_SHA}
-    when:
-      environment: production
-      event: deployment
-
-  complete-snow-change-production:
-    image: quay.io/ukhomeofficedigital/snowtify:latest
-    secrets:
-      - source: PRODUCTION_SERVICE_NOW_PASSWORD
-        target: SNOW_PROD_PASS
-      - source: PRODUCTION_SERVICE_NOW_URL
-        target: SNOW_ENDPOINT
-      - source: PRODUCTION_SERVICE_NOW_USERNAME
-        target: SNOW_PROD_USER
+- name: complete-snow-change-production
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/snowtify:latest
+  settings:
     comments: Successful deployment of ${DRONE_REPO}:${DRONE_COMMIT_SHA}
     deployment_outcome: success
-    when:
-      environment: production
-      event: deployment
-      status: success
+  environment:
+    SNOW_DESC_FILE: /drone/src/change-desc.txt
+    SNOW_INT_ID_FILE: /drone/src/internal-id
+    SNOW_ENDPOINT:
+      from_secret: PRODUCTION_SERVICE_NOW_URL
+    SNOW_PROD_PASS:
+      from_secret: PRODUCTION_SERVICE_NOW_PASSWORD
+    SNOW_PROD_USER:
+      from_secret: PRODUCTION_SERVICE_NOW_USERNAME
+  when:
+    event:
+    - promote
+    status:
+    - success
+    target:
+    - production
 
-  cancel-snow-change-production:
-    image: quay.io/ukhomeofficedigital/snowtify:latest
-    secrets:
-      - source: PRODUCTION_SERVICE_NOW_PASSWORD
-        target: SNOW_PROD_PASS
-      - source: PRODUCTION_SERVICE_NOW_URL
-        target: SNOW_ENDPOINT
-      - source: PRODUCTION_SERVICE_NOW_USERNAME
-        target: SNOW_PROD_USER
+- name: cancel-snow-change-production
+  pull: if-not-exists
+  image: quay.io/ukhomeofficedigital/snowtify:latest
+  settings:
     comments: Failed deployment of ${DRONE_REPO}:${DRONE_COMMIT_SHA}
     deployment_outcome: fail
-    when:
-      environment: production
-      event: deployment
-      status: failure
+  environment:
+    SNOW_DESC_FILE: /drone/src/change-desc.txt
+    SNOW_INT_ID_FILE: /drone/src/internal-id
+    SNOW_ENDPOINT:
+      from_secret: PRODUCTION_SERVICE_NOW_URL
+    SNOW_PROD_PASS:
+      from_secret: PRODUCTION_SERVICE_NOW_PASSWORD
+    SNOW_PROD_USER:
+      from_secret: PRODUCTION_SERVICE_NOW_USERNAME
+  when:
+    event:
+    - promote
+    status:
+    - failure
+    target:
+    - production
 
-  notify:
-    image: plugins/slack
-    secrets: [ SLACK_WEBHOOK ]
+- name: notify
+  pull: if-not-exists
+  image: plugins/slack
+  settings:
     channel: cop-deployments
+    template: "{{#build.deployTo}}\n  *{{repo.name}} - Build {{build.number}} - {{uppercasefirst build.deployTo}} - {{uppercase build.status}}*\n  {{build.link}}\n{{else}}\n  *{{repo.name}} - Build {{build.number}} - Development - {{uppercase build.status}}*\n  {{build.link}}\n{{/build.deployTo}}\n"
     username: Drone Build Watcher
-    template: >
-      {{#build.deployTo}}
-        *{{repo.name}} - Build {{build.number}} - {{uppercasefirst build.deployTo}} - {{uppercase build.status}}*
-        {{build.link}}
-      {{else}}
-        *{{repo.name}} - Build {{build.number}} - Development - {{uppercase build.status}}*
-        {{build.link}}
-      {{/build.deployTo}}
-    when:
-      branch: master
-      event: [ push, deployment ]
-      status: [ success, failure ]
+  environment:
+    SLACK_WEBHOOK:
+      from_secret: SLACK_WEBHOOK
+  when:
+    branch:
+    - master
+    event:
+    - push
+    - promote
+    status:
+    - success
+    - failure
 
-matrix:                 # setup some common env vars
-  SNOW_DESC_FILE:
-    - /drone/src/change-desc.txt
-  SNOW_INT_ID_FILE:
-    - /drone/src/internal-id
+services:
+- name: docker
+  image: docker:19.03.12-dind
+  volumes:
+  - name: dockersock
+    path: /var/run
+
+- name: anchore-submission-server
+  image: docker.digital.homeoffice.gov.uk/acp-anchore-submission:latest
+  commands:
+  - /anchore-submission server
+  environment:
+    ANCHORE_URL: acp-anchore.acp.homeoffice.gov.uk
+    REGISTRY_URL: acp-ephemeral-registry.acp.homeoffice.gov.uk
+  volumes:
+  - name: dockersock
+    path: /var/run
+
+volumes:
+- name: dockersock
+  temp: {}
+
+...
