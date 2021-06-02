@@ -27,6 +27,8 @@ class CaseActionServiceSpec extends BaseSpec {
         then: 'there should be 2 actions'
         result.size() == 2
 
+        and: 'the first action should be generate-case-pdf'
+        result.first().process.processDefinitionDto.key == 'generate-case-pdf'
 
     }
 

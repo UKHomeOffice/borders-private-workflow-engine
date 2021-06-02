@@ -66,7 +66,7 @@ public class CaseActionService {
                     return pdf;
                 }).collect(toList());
 
-        actions.add(defaultAction);
+        actions.addAll(0, List.of(defaultAction));
 
         return actions;
         } catch (Exception e) {
