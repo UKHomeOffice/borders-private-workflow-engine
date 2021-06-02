@@ -1,5 +1,5 @@
 FROM amazoncorretto:11-alpine as base
-COPY --from=digitalpatterns/jdk:7 /usr/bin/run.sh /usr/bin/run.sh
+COPY --from=quay.io/ukhomeofficedigital/jdk:latest /app/run.sh /usr/bin/run.sh
 RUN set -eux; \
   apk update; \
   apk add --no-cache \
