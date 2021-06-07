@@ -61,6 +61,7 @@ public class ProcessDefinitionAuthorizationParser {
                     newAuthorization.setResource(Resources.PROCESS_DEFINITION);
                     newAuthorization.setResourceId(processDefinition.getKey());
                     newAuthorization.addPermission(Permissions.READ);
+                    newAuthorization.addPermission(Permissions.CREATE_INSTANCE);
                     log.info("Authorization for {} = {}", processDefinition.getKey(), code);
                     return newAuthorization;
                 }).forEach((authorization -> {
